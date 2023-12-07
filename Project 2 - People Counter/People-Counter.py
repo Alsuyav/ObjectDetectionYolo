@@ -1,6 +1,4 @@
 """
-Чтобы считать машины, нужно определить некоторую область и детектировать машины в ней.
-Для этого необходимо создать маску (можно с помощью canva) - mask.png
 Также необходим трекер для каждого авто, чтобы не принимать одну и ту же машину на разных кадрах за разные объекты.
 Используем sort.py - https://github.com/abewley/sort
 """
@@ -15,7 +13,7 @@ from sort import *
 
 
 # создаем объект для видео
-cap = cv2.VideoCapture("../Videos/cars.mp4")
+cap = cv2.VideoCapture("../Videos/people.mp4")
 
 model = YOLO("../Yolo-Weights/yolov8n.pt")
 
@@ -41,18 +39,21 @@ mask = cv2.imread("mask.png")
 # iou_threshold - подог пересечение / объединение
 tracker = Sort(max_age=20, min_hits=3, iou_threshold=0.3)
 
-# пределы линии, которую будут пересекать машины
-limits = [400, 297, 673, 297]
-totalCount = []
+# пределы линий, которые будут пересекаться людьми, едущими вверх и вниз
+limitsUp = [103, 161, 296, 161]
+limitsDown = [527, 489, 735, 489]
+
+totalCountUp = []
+totalCountDown = []
 
 while True:
     success, img = cap.read()
     # наложение побитовой маски
     imgRegion = cv2.bitwise_and(img, mask)
 
-    # добавим картинку для красивого представления подсчётов
+    # добавим картинку для красивого представления подсчётов и её местоположение
     imgGraphics = cv2.imread("graphics.png", cv2.IMREAD_UNCHANGED)
-    img = cvzone.overlayPNG(img, imgGraphics, (0, 0))
+    img = cvzone.overlayPNG(img, imgGraphics, (730, 260))
 
     results = model(imgRegion, stream=True)
 
@@ -76,10 +77,9 @@ while True:
             # имя класса
             currentClass = classNames[cls]
 
-            # хотим определять только 4 перечисленных класса с уверенностью более 0.3
-            if currentClass == "car" or currentClass == "truck" or currentClass == "bus" \
-                    or currentClass == "motorbike" and conf > 0.3:
-                # выводит бокс и надпись для всех машин
+            # хотим определять только 1 класс с уверенностью более 0.3
+            if currentClass == "person" and conf > 0.3:
+                # выводит бокс и надпись для всех людей
                 # cvzone.putTextRect(img, f'{currentClass} {conf}', (max(0, x1), max(35, y1)),
                 #                    scale=0.6, thickness=1, offset=3)
                 # cvzone.cornerRect(img, (x1, y1, w, h), l=9, rt=5)
@@ -91,8 +91,9 @@ while True:
     # трекер обновляется списком детекций
     resultsTracker = tracker.update(detections)
 
-    # отображение линии, будут учитываться машины пересекающие эту линию
-    cv2.line(img, (limits[0], limits[1]), (limits[2], limits[3]), (0, 0, 255), 5)
+    # отображение линий, будут учитываться люди пересекающие эту линию
+    cv2.line(img, (limitsUp[0], limitsUp[1]), (limitsUp[2], limitsUp[3]), (0, 0, 255), 5)
+    cv2.line(img, (limitsDown[0], limitsDown[1]), (limitsDown[2], limitsDown[3]), (0, 0, 255), 5)
 
     # просмотр результатов трекера
     for result in resultsTracker:
@@ -111,20 +112,19 @@ while True:
         cv2.circle(img, (cx, cy), 5, (255, 0, 255), cv2.FILLED)
 
         # если центр объект оказывается около линии, засчитываем объект
-        if limits[0] < cx < limits[2] and limits[1] - 15 < cy < limits[1] + 15:
-            # учитываем только уникальный id, т.е. которых еще нет в списке
-            if totalCount.count(id) == 0:
-                totalCount.append(id)
-                # линия будет зеленой, когда идентифицирует объект
-                cv2.line(img, (limits[0], limits[1]), (limits[2], limits[3]), (0, 255, 0), 5)
+        if limitsUp[0] < cx < limitsUp[2] and limitsUp[1] - 15 < cy < limitsUp[1] + 15:
+            if totalCountUp.count(id) == 0:
+                totalCountUp.append(id)
+                cv2.line(img, (limitsUp[0], limitsUp[1]), (limitsUp[2], limitsUp[3]), (0, 255, 0), 5)
 
-        # простой счётчик в левом верхнем углу
-        # cvzone.putTextRect(img, f' Count: {len(totalCount)}', (50, 50))
+        if limitsDown[0] < cx < limitsDown[2] and limitsDown[1] - 15 < cy < limitsDown[1] + 15:
+            if totalCountDown.count(id) == 0:
+                totalCountDown.append(id)
+                cv2.line(img, (limitsDown[0], limitsDown[1]), (limitsDown[2], limitsDown[3]), (0, 255, 0), 5)
 
-        # красивый счётчик
-        cv2.putText(img, str(len(totalCount)), (255, 100), cv2.FONT_HERSHEY_PLAIN, 5, (50, 50, 255), 8)
+        # счётчик
+        cv2.putText(img, str(len(totalCountUp)), (929, 345), cv2.FONT_HERSHEY_PLAIN, 5, (139, 195, 75), 7)
+        cv2.putText(img, str(len(totalCountDown)), (1191, 345), cv2.FONT_HERSHEY_PLAIN, 5, (50, 50, 230), 7)
 
     cv2.imshow("Image", img)
-    # показывает только выделенный участок
-    # cv2.imshow("ImageRegion", imgRegion)
     cv2.waitKey(1)
