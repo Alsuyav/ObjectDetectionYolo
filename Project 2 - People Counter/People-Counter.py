@@ -1,9 +1,3 @@
-"""
-Также необходим трекер для каждого авто, чтобы не принимать одну и ту же машину на разных кадрах за разные объекты.
-Используем sort.py - https://github.com/abewley/sort
-"""
-
-
 import numpy as np
 from ultralytics import YOLO
 import cv2
